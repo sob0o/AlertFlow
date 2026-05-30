@@ -4,3 +4,4 @@ kafka-python-ng==2.2.3
 pydantic==2.7.0
 python-dotenv==1.0.0
 pytest==8.2.0
+prometheus-fastapi-instrumentator==6.1.0

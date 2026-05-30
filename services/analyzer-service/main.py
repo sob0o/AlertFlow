@@ -8,6 +8,9 @@ from kafka import KafkaConsumer, KafkaProducer
 
 app = FastAPI(title="analyzer-service")
 
+from prometheus_fastapi_instrumentator import Instrumentator
+Instrumentator().instrument(app).expose(app)
+
 metrics_store = defaultdict(list)
 
 def get_producer():

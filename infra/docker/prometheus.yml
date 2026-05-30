@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "agent-service"
+    static_configs:
+      - targets: ["agent-service:8000"]
+
+  - job_name: "analyzer-service"
+    static_configs:
+      - targets: ["analyzer-service:8000"]
+
+  - job_name: "alert-service"
+    static_configs:
+      - targets: ["alert-service:8000"]

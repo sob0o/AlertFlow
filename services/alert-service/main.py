@@ -7,6 +7,8 @@ from fastapi import FastAPI
 from kafka import KafkaConsumer
 
 app = FastAPI(title="alert-service")
+from prometheus_fastapi_instrumentator import Instrumentator
+Instrumentator().instrument(app).expose(app)
 
 alerts = []
 

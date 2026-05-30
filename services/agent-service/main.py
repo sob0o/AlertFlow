@@ -8,6 +8,8 @@ from pydantic import BaseModel
 from kafka import KafkaProducer
 
 app = FastAPI(title="agent-service")
+from prometheus_fastapi_instrumentator import Instrumentator
+Instrumentator().instrument(app).expose(app) 
 
 def get_producer():
     return KafkaProducer(
