@@ -4,11 +4,17 @@ import threading
 from collections import defaultdict
 
 from fastapi import FastAPI
-from kafka import KafkaConsumer
+from kafka import KafkaConsumer, KafkaProducer
 
 app = FastAPI(title="analyzer-service")
 
 metrics_store = defaultdict(list)
+
+def get_producer():
+    return KafkaProducer(
+        bootstrap_servers="kafka:9092",
+        value_serializer=lambda v: json.dumps(v).encode("utf-8")
+    )
 
 def consume():
     while True:
@@ -20,9 +26,29 @@ def consume():
                 group_id="analyzer-group",
                 auto_offset_reset="earliest"
             )
+            producer = get_producer()
             for message in consumer:
                 event = message.value
-                metrics_store[event["merchant_id"]].append(event)
+                merchant_id = event["merchant_id"]
+                metrics_store[merchant_id].append(event)
+
+                events = metrics_store[merchant_id]
+                total = len(events)
+                success = sum(1 for e in events if e["status"] == "success")
+                latencies = sorted(e["latency_ms"] for e in events)
+
+                metrics = {
+                    "total_transactions": total,
+                    "success_rate": round(success / total * 100, 2),
+                    "latency": {
+                        "p50": latencies[int(total * 0.50)],
+                        "p95": latencies[int(total * 0.95)],
+                        "p99": latencies[int(total * 0.99)]
+                    }
+                }
+                producer.send("alert.triggers", {"merchant_id": merchant_id, "metrics": metrics})
+                producer.flush()
+
         except Exception as e:
             print(f"Kafka not ready, retrying in 5s... ({e})")
             time.sleep(5)
