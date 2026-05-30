@@ -5,10 +5,11 @@ from collections import defaultdict
 
 from fastapi import FastAPI
 from kafka import KafkaConsumer, KafkaProducer
+from prometheus_fastapi_instrumentator import Instrumentator
+
+from database import init_db, SessionLocal, MetricSnapshot
 
 app = FastAPI(title="analyzer-service")
-
-from prometheus_fastapi_instrumentator import Instrumentator
 Instrumentator().instrument(app).expose(app)
 
 metrics_store = defaultdict(list)
@@ -49,15 +50,30 @@ def consume():
                         "p99": latencies[int(total * 0.99)]
                     }
                 }
+
+                db = SessionLocal()
+                snapshot = MetricSnapshot(
+                    merchant_id=merchant_id,
+                    total_transactions=total,
+                    success_rate=metrics["success_rate"],
+                    p50=metrics["latency"]["p50"],
+                    p95=metrics["latency"]["p95"],
+                    p99=metrics["latency"]["p99"]
+                )
+                db.add(snapshot)
+                db.commit()
+                db.close()
+
                 producer.send("alert.triggers", {"merchant_id": merchant_id, "metrics": metrics})
                 producer.flush()
 
         except Exception as e:
-            print(f"Kafka not ready, retrying in 5s... ({e})")
+            print(f"Error, retrying in 5s... ({e})")
             time.sleep(5)
 
 @app.on_event("startup")
 def startup():
+    init_db()
     thread = threading.Thread(target=consume, daemon=True)
     thread.start()
 

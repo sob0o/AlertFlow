@@ -5,9 +5,11 @@ from datetime import datetime
 
 from fastapi import FastAPI
 from kafka import KafkaConsumer
+from prometheus_fastapi_instrumentator import Instrumentator
+
+from database import init_db, SessionLocal, AlertRecord
 
 app = FastAPI(title="alert-service")
-from prometheus_fastapi_instrumentator import Instrumentator
 Instrumentator().instrument(app).expose(app)
 
 alerts = []
@@ -32,6 +34,7 @@ def evaluate(merchant_id: str, metrics: dict):
     elif p99 > RULES["p99_latency"]["warning"]:
         triggered.append({"level": "WARNING", "reason": f"p99={p99}ms > 500ms"})
 
+    db = SessionLocal()
     for alert in triggered:
         alerts.append({
             "merchant_id": merchant_id,
@@ -39,7 +42,14 @@ def evaluate(merchant_id: str, metrics: dict):
             "reason": alert["reason"],
             "timestamp": datetime.utcnow().isoformat()
         })
+        db.add(AlertRecord(
+            merchant_id=merchant_id,
+            level=alert["level"],
+            reason=alert["reason"]
+        ))
         print(f"[ALERT] {alert['level']} - {merchant_id} - {alert['reason']}")
+    db.commit()
+    db.close()
 
 def consume():
     while True:
@@ -60,6 +70,7 @@ def consume():
 
 @app.on_event("startup")
 def startup():
+    init_db()
     thread = threading.Thread(target=consume, daemon=True)
     thread.start()
 
