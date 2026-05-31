@@ -72,19 +72,19 @@ Without AlertFlow, the engineer finds out at 09:55 — when three merchants have
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        AlertFlow Platform                        │
-│                                                                  │
+│                        AlertFlow Platform                       │
+│                                                                 │
 │  ┌──────────────┐    Kafka Topic       ┌─────────────────────┐  │
-│  │agent-service │  ────────────────►  │  analyzer-service   │  │
+│  │agent-service │  ────────────────►   │  analyzer-service   │  │
 │  │              │  payment.events      │                     │  │
 │  │ Ingests &    │                      │  - p50/p95/p99      │  │
 │  │ simulates    │                      │  - success rate     │  │
 │  │ payment      │                      │  - persists to      │  │
 │  │ events       │                      │    PostgreSQL       │  │
 │  └──────────────┘                      └──────────┬──────────┘  │
-│                                                   │              │
-│                                          alert.triggers          │
-│                                                   │              │
+│                                                   │             │
+│                                          alert.triggers         │
+│                                                   │             │
 │                                        ┌──────────▼──────────┐  │
 │                                        │    alert-service    │  │
 │                                        │                     │  │
@@ -93,11 +93,11 @@ Without AlertFlow, the engineer finds out at 09:55 — when three merchants have
 │                                        │  - persists to      │  │
 │                                        │    PostgreSQL       │  │
 │                                        └─────────────────────┘  │
-│                                                                  │
-│  ┌────────────┐  ┌────────────┐  ┌──────────────────────────┐  │
-│  │ Prometheus │  │  Grafana   │  │  PostgreSQL + Kafka       │  │
-│  │ (metrics)  │  │(dashboards)│  │  + Zookeeper             │  │
-│  └────────────┘  └────────────┘  └──────────────────────────┘  │
+│                                                                 │
+│  ┌────────────┐  ┌────────────┐  ┌──────────────────────────┐   │
+│  │ Prometheus │  │  Grafana   │  │  PostgreSQL + Kafka      │   │
+│  │ (metrics)  │  │(dashboards)│  │  + Zookeeper             │   │
+│  └────────────┘  └────────────┘  └──────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -243,10 +243,10 @@ docker compose run --rm alert-service pytest test_alerts.py -v
 - [x] PostgreSQL persistence for metrics and alerts
 - [x] Prometheus + Grafana observability
 - [x] Unit tests for alert evaluation logic
-- [ ] Redis cache for latest metrics per merchant
-- [ ] Kubernetes deployment with Kind
-- [ ] GitHub Actions CI/CD pipeline
-- [ ] Terraform IaC for GCP deployment
+- [x] Redis cache for latest metrics per merchant
+- [x] Kubernetes deployment with Kind
+- [x] GitHub Actions CI/CD pipeline
+- [x] Terraform IaC for GCP deployment
 
 ---
 
