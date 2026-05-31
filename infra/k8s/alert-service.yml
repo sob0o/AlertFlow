@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alert-service
+  namespace: alertflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alert-service
+  template:
+    metadata:
+      labels:
+        app: alert-service
+    spec:
+      containers:
+        - name: alert-service
+          image: alertflow-alert-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka:9092"
+            - name: DATABASE_URL
+              value: "postgresql://alertflow:alertflow@postgres:5432/alertflow"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alert-service
+  namespace: alertflow
+spec:
+  selector:
+    app: alert-service
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP

@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analyzer-service
+  namespace: alertflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: analyzer-service
+  template:
+    metadata:
+      labels:
+        app: analyzer-service
+    spec:
+      containers:
+        - name: analyzer-service
+          image: alertflow-analyzer-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka:9092"
+            - name: DATABASE_URL
+              value: "postgresql://alertflow:alertflow@postgres:5432/alertflow"
+            - name: REDIS_HOST
+              value: "redis"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analyzer-service
+  namespace: alertflow
+spec:
+  selector:
+    app: analyzer-service
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP
