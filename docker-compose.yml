@@ -31,6 +31,8 @@ services:
       - "8002:8000"
     depends_on:
       - kafka
+      - redis
+      - postgres
     env_file:
       - .env
 
@@ -69,6 +71,11 @@ services:
       POSTGRES_DB: alertflow
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7.2
+    ports:
+      - "6379:6379"
 
 volumes:
   postgres_data:

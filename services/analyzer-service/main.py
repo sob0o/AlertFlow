@@ -3,6 +3,7 @@ import time
 import threading
 from collections import defaultdict
 
+import redis
 from fastapi import FastAPI
 from kafka import KafkaConsumer, KafkaProducer
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -13,12 +14,27 @@ app = FastAPI(title="analyzer-service")
 Instrumentator().instrument(app).expose(app)
 
 metrics_store = defaultdict(list)
+cache = redis.Redis(host="redis", port=6379, decode_responses=True)
 
 def get_producer():
     return KafkaProducer(
         bootstrap_servers="kafka:9092",
         value_serializer=lambda v: json.dumps(v).encode("utf-8")
     )
+
+def compute_metrics(events):
+    total = len(events)
+    success = sum(1 for e in events if e["status"] == "success")
+    latencies = sorted(e["latency_ms"] for e in events)
+    return {
+        "total_transactions": total,
+        "success_rate": round(success / total * 100, 2),
+        "latency": {
+            "p50": latencies[int(total * 0.50)],
+            "p95": latencies[int(total * 0.95)],
+            "p99": latencies[int(total * 0.99)]
+        }
+    }
 
 def consume():
     while True:
@@ -36,31 +52,25 @@ def consume():
                 merchant_id = event["merchant_id"]
                 metrics_store[merchant_id].append(event)
 
-                events = metrics_store[merchant_id]
-                total = len(events)
-                success = sum(1 for e in events if e["status"] == "success")
-                latencies = sorted(e["latency_ms"] for e in events)
+                metrics = compute_metrics(metrics_store[merchant_id])
 
-                metrics = {
-                    "total_transactions": total,
-                    "success_rate": round(success / total * 100, 2),
-                    "latency": {
-                        "p50": latencies[int(total * 0.50)],
-                        "p95": latencies[int(total * 0.95)],
-                        "p99": latencies[int(total * 0.99)]
-                    }
-                }
+                # Cache dans Redis (expire après 60s)
+                cache.setex(
+                    f"metrics:{merchant_id}",
+                    60,
+                    json.dumps(metrics)
+                )
 
+                # Persist dans PostgreSQL
                 db = SessionLocal()
-                snapshot = MetricSnapshot(
+                db.add(MetricSnapshot(
                     merchant_id=merchant_id,
-                    total_transactions=total,
+                    total_transactions=metrics["total_transactions"],
                     success_rate=metrics["success_rate"],
                     p50=metrics["latency"]["p50"],
                     p95=metrics["latency"]["p95"],
                     p99=metrics["latency"]["p99"]
-                )
-                db.add(snapshot)
+                ))
                 db.commit()
                 db.close()
 
@@ -83,21 +93,14 @@ def health():
 
 @app.get("/metrics/{merchant_id}")
 def get_metrics(merchant_id: str):
+    # Cherche dans Redis d'abord
+    cached = cache.get(f"metrics:{merchant_id}")
+    if cached:
+        return {"source": "cache", "merchant_id": merchant_id, **json.loads(cached)}
+
+    # Fallback sur la mémoire
     events = metrics_store.get(merchant_id, [])
     if not events:
         return {"merchant_id": merchant_id, "message": "no data yet"}
 
-    latencies = sorted(e["latency_ms"] for e in events)
-    total = len(events)
-    success = sum(1 for e in events if e["status"] == "success")
-
-    return {
-        "merchant_id": merchant_id,
-        "total_transactions": total,
-        "success_rate": round(success / total * 100, 2),
-        "latency": {
-            "p50": latencies[int(total * 0.50)],
-            "p95": latencies[int(total * 0.95)],
-            "p99": latencies[int(total * 0.99)]
-        }
-    }
+    return {"source": "memory", "merchant_id": merchant_id, **compute_metrics(events)}

@@ -45,7 +45,7 @@ def simulate():
     event = {
         "event_id": str(uuid.uuid4()),
         "timestamp": datetime.utcnow().isoformat(),
-        "merchant_id": random.choice(["acme_pay", "swift_bank", "lydia"]),
+        "merchant_id": random.choice(["amazon_fr", "zara_es", "uber_eats", "fnac_fr", "leboncoin"]),
         "amount": round(random.uniform(1.0, 999.0), 2),
         "currency": "EUR",
         "status": random.choice(["success", "success", "success", "failed"]),
