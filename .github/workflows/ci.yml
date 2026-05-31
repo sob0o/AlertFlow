@@ -38,11 +38,12 @@ jobs:
         run: |
           pip install -r services/alert-service/requirements.txt
 
+      # This step forces the Linux runner to map the name "postgres" to local memory
+      - name: Configure local hosts file
+        run: |
+          sudo echo "127.0.0.1 postgres" | sudo tee -a /etc/hosts
+
       - name: Run tests
-        # This ENV section fixes your connection error!
-        env:
-          DB_HOST: localhost
-          DATABASE_URL: postgresql://alertflow:alertflow@localhost:5432/alertflow
         run: |
           cd services/alert-service
           pytest test_alerts.py -v
