@@ -1,0 +1,50 @@
+namespace: alertflow
+
+agentService:
+  image: alertflow-agent-service:latest
+  replicas: 1
+  port: 8000
+
+analyzerService:
+  image: alertflow-analyzer-service:latest
+  replicas: 1
+  port: 8000
+
+alertService:
+  image: alertflow-alert-service:latest
+  replicas: 1
+  port: 8000
+
+kafka:
+  image: confluentinc/cp-kafka:7.6.0
+  replicas: 1
+  port: 9092
+
+zookeeper:
+  image: confluentinc/cp-zookeeper:7.6.0
+  replicas: 1
+  port: 2181
+
+postgres:
+  image: postgres:16
+  replicas: 1
+  port: 5432
+  user: alertflow
+  password: alertflow
+  db: alertflow
+
+redis:
+  image: redis:7.2
+  replicas: 1
+  port: 6379
+
+prometheus:
+  image: prom/prometheus:v2.51.0
+  replicas: 1
+  port: 9090
+
+grafana:
+  image: grafana/grafana:10.4.0
+  replicas: 1
+  port: 3000
+  adminPassword: admin
