@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analyzer-service
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.analyzerService.replicas }}
+  selector:
+    matchLabels:
+      app: analyzer-service
+  template:
+    metadata:
+      labels:
+        app: analyzer-service
+    spec:
+      containers:
+        - name: analyzer-service
+          image: {{ .Values.analyzerService.image }}
+          imagePullPolicy: Never
+          ports:
+            - containerPort: {{ .Values.analyzerService.port }}
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka:9092"
+            - name: DATABASE_URL
+              value: "postgresql://{{ .Values.postgres.user }}:{{ .Values.postgres.password }}@postgres:5432/{{ .Values.postgres.db }}"
+            - name: REDIS_HOST
+              value: "redis"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analyzer-service
+  namespace: {{ .Values.namespace }}
+spec:
+  selector:
+    app: analyzer-service
+  ports:
+    - port: {{ .Values.analyzerService.port }}
+      targetPort: {{ .Values.analyzerService.port }}

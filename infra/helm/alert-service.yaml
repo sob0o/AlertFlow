@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alert-service
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.alertService.replicas }}
+  selector:
+    matchLabels:
+      app: alert-service
+  template:
+    metadata:
+      labels:
+        app: alert-service
+    spec:
+      containers:
+        - name: alert-service
+          image: {{ .Values.alertService.image }}
+          imagePullPolicy: Never
+          ports:
+            - containerPort: {{ .Values.alertService.port }}
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka:9092"
+            - name: DATABASE_URL
+              value: "postgresql://{{ .Values.postgres.user }}:{{ .Values.postgres.password }}@postgres:5432/{{ .Values.postgres.db }}"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alert-service
+  namespace: {{ .Values.namespace }}
+spec:
+  selector:
+    app: alert-service
+  ports:
+    - port: {{ .Values.alertService.port }}
+      targetPort: {{ .Values.alertService.port }}
