@@ -44,6 +44,8 @@ jobs:
           sudo echo "127.0.0.1 postgres" | sudo tee -a /etc/hosts
 
       - name: Run tests
+        env:
+          DATABASE_URL: postgresql://alertflow:alertflow@localhost:5432/alertflow
         run: |
           cd services/alert-service
           pytest test_alerts.py -v
