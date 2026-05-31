@@ -2,17 +2,11 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(__file__))
 
-# 1. Add init_db to your database imports here
-from database import init_db 
 from main import evaluate, alerts
 
-# 2. Add this function. Pytest will automatically run it ONCE 
-# before any tests in this file begin.
-def setup_module(module):
-    init_db()
+def setup_function():
+    alerts.clear()
 
-
-    
 def test_critical_success_rate():
     evaluate("stripe_eu", {"success_rate": 85.0, "latency": {"p99": 100}})
     assert len(alerts) == 1
