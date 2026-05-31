@@ -1,24 +1,70 @@
 # AlertFlow
 
-[![CI](https://github.com/souhib-kacemi/alertflow/actions/workflows/ci.yml/badge.svg)](https://github.com/souhib-kacemi/alertflow/actions)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> Real-time payment infrastructure monitoring platform — detects latency spikes, error rate anomalies, and SLO violations across high-throughput transaction pipelines.
+> Real-time SLI/SLO monitoring platform for payment transaction pipelines — detects latency spikes, error rate anomalies, and SLO violations before merchants notice.
 
 ---
 
-## Overview
+## The Problem
 
-Modern payment systems process thousands of transactions per second. A 200ms latency spike or a 0.5% error rate increase can translate to significant revenue loss and regulatory exposure.
+You run a payment processing company. Your API handles thousands of transactions per second — every time a customer clicks "Pay" on a website, a request hits your system.
 
-**AlertFlow** is an event-driven monitoring platform built with production-grade patterns:
+Everything looks fine on your dashboard. But somewhere in your infrastructure, 1 transaction out of 50 is silently failing for a specific merchant. Latency is climbing. Your p99 just crossed 800ms.
 
-- Transaction events flow through **Apache Kafka** for durability and replay
-- **SLIs** (p50/p95/p99 latency, success rate, throughput) are computed in real-time
-- **SLO violations** trigger structured alerts before error budgets are exhausted
-- All metrics and alerts are **persisted in PostgreSQL**
-- Full observability via **Prometheus + Grafana**
+You find out 20 minutes later — when the merchant calls.
+
+**That 20-minute gap is the problem AlertFlow solves.**
+
+---
+
+## What AlertFlow Does
+
+AlertFlow is a monitoring platform that sits alongside a payment API and watches every transaction in real-time.
+
+It continuously answers three questions:
+
+- **Is the API fast enough?** — tracks p50, p95, p99 latency per merchant
+- **Is the API reliable?** — tracks success rate over rolling windows
+- **Are we about to breach our SLO?** — fires structured alerts before the error budget runs out
+
+```
+Payment API                    AlertFlow
+────────────────               ──────────────────────────────────
+Customer pays  ──── event ──►  agent-service receives transaction
+API responds         │         analyzer-service computes SLIs
+                     │         alert-service fires if SLO breached
+                     ▼
+              Engineer is paged
+              before merchant calls
+```
+
+The `agent-service` simulates the transaction event stream that a real payment API would emit. In production, it would consume events directly from the payment system's Kafka topics.
+
+---
+
+## A Concrete Scenario
+
+```
+09:00  Normal traffic
+       acme_pay → success rate 99.8%, p99 = 85ms  ✅
+
+09:34  Database starts degrading
+       acme_pay → p99 climbs to 620ms
+       AlertFlow fires → WARNING: p99=620ms > 500ms
+
+09:36  Degradation worsens
+       acme_pay → p99 reaches 1350ms, success rate drops to 87%
+       AlertFlow fires → CRITICAL: p99=1350ms > 1000ms
+                      → CRITICAL: success_rate=87% < 90%
+
+09:37  On-call engineer is paged automatically
+
+09:41  Issue resolved. p99 back to 90ms  ✅
+```
+
+Without AlertFlow, the engineer finds out at 09:55 — when three merchants have already opened support tickets.
 
 ---
 
@@ -31,9 +77,9 @@ Modern payment systems process thousands of transactions per second. A 200ms lat
 │  ┌──────────────┐    Kafka Topic       ┌─────────────────────┐  │
 │  │agent-service │  ────────────────►  │  analyzer-service   │  │
 │  │              │  payment.events      │                     │  │
-│  │ Simulates &  │                      │  - SLI computation  │  │
-│  │ collects     │                      │  - Anomaly detection│  │
-│  │ payment      │                      │  - Persists in      │  │
+│  │ Ingests &    │                      │  - p50/p95/p99      │  │
+│  │ simulates    │                      │  - success rate     │  │
+│  │ payment      │                      │  - persists to      │  │
 │  │ events       │                      │    PostgreSQL       │  │
 │  └──────────────┘                      └──────────┬──────────┘  │
 │                                                   │              │
@@ -42,15 +88,15 @@ Modern payment systems process thousands of transactions per second. A 200ms lat
 │                                        ┌──────────▼──────────┐  │
 │                                        │    alert-service    │  │
 │                                        │                     │  │
-│                                        │  - SLO evaluation   │  │
-│                                        │  - Alert history    │  │
-│                                        │  - Persists in      │  │
+│                                        │  - evaluates SLOs   │  │
+│                                        │  - fires alerts     │  │
+│                                        │  - persists to      │  │
 │                                        │    PostgreSQL       │  │
 │                                        └─────────────────────┘  │
 │                                                                  │
 │  ┌────────────┐  ┌────────────┐  ┌──────────────────────────┐  │
-│  │ Prometheus │  │  Grafana   │  │  PostgreSQL + Kafka +    │  │
-│  │ (metrics)  │  │(dashboards)│  │  Zookeeper               │  │
+│  │ Prometheus │  │  Grafana   │  │  PostgreSQL + Kafka       │  │
+│  │ (metrics)  │  │(dashboards)│  │  + Zookeeper             │  │
 │  └────────────┘  └────────────┘  └──────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -71,7 +117,7 @@ Simulates a payment gateway emitting transaction events. Publishes structured ev
 
 ### `analyzer-service` — SLI Engine (port 8002)
 
-Consumes `payment.events` from Kafka. Computes rolling SLIs per merchant and globally. Persists snapshots to PostgreSQL. Publishes `alert.triggers` when thresholds are breached.
+Consumes `payment.events` from Kafka. Computes rolling SLIs per merchant. Persists snapshots to PostgreSQL. Publishes `alert.triggers` when thresholds are breached.
 
 | Endpoint | Method | Description |
 |---|---|---|
@@ -80,7 +126,7 @@ Consumes `payment.events` from Kafka. Computes rolling SLIs per merchant and glo
 
 ### `alert-service` — SLO Alerting (port 8003)
 
-Consumes `alert.triggers`. Evaluates alert rules. Persists alert history to PostgreSQL.
+Consumes `alert.triggers`. Evaluates alert rules against SLO thresholds. Persists alert history to PostgreSQL.
 
 | Endpoint | Method | Description |
 |---|---|---|
@@ -130,18 +176,16 @@ curl http://localhost:8002/metrics/acme_pay
 curl http://localhost:8003/alerts
 ```
 
-### Inject a custom transaction
+### Trigger a CRITICAL alert
 
 ```bash
+# Inject 3 failed high-latency transactions
 curl -X POST http://localhost:8001/inject \
   -H "Content-Type: application/json" \
-  -d '{
-    "merchant_id": "stripe_eu",
-    "amount": 299.99,
-    "currency": "EUR",
-    "status": "failed",
-    "latency_ms": 1500
-  }'
+  -d '{"merchant_id": "stripe_eu", "amount": 299.99, "currency": "EUR", "status": "failed", "latency_ms": 1500}'
+
+# Check the alerts
+curl http://localhost:8003/alerts
 ```
 
 ### Observability UIs
@@ -171,13 +215,13 @@ curl -X POST http://localhost:8001/inject \
 Payment systems require durable, replayable event streams. Kafka decouples producers from consumers, handles backpressure naturally, and enables replay for backfilling metrics — the same pattern used at Stripe, Adyen, and Lydia.
 
 **Why rolling SLIs instead of simple averages?**
-Averages mask spikes. A 1-second burst of 2000ms latency on a 60-second window barely moves the average needle. Rolling p99 computation surfaces degradation immediately, which is how SRE teams operate.
+Averages mask spikes. A 1-second burst of 2000ms latency barely moves the average needle. Rolling p99 surfaces degradation immediately, which is how SRE teams operate.
 
 **Why three separate services instead of a monolith?**
-Each service has a distinct scaling profile: `agent-service` scales with data sources, `analyzer-service` is CPU-bound and scales with throughput, `alert-service` is IO-bound. Independent deployability also enables canary releases per service.
+Each service has a distinct scaling profile: `agent-service` scales with data sources, `analyzer-service` is CPU-bound, `alert-service` is IO-bound. Independent deployability enables canary releases per service.
 
 **Why persist to PostgreSQL if Kafka already stores events?**
-Kafka is optimized for streaming, not querying. PostgreSQL enables efficient queries like "show me all CRITICAL alerts for merchant X in the last hour" or "what was the p99 latency trend over the last 7 days" — use cases that would be expensive on raw Kafka topics.
+Kafka is optimized for streaming, not querying. PostgreSQL enables efficient historical queries — "all CRITICAL alerts for merchant X in the last hour", "p99 trend over 7 days" — that would be expensive on raw Kafka topics.
 
 ---
 
