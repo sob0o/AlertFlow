@@ -1,8 +1,16 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
 jobs:
   test:
     runs-on: ubuntu-latest
 
-    # Add a PostgreSQL service container
+    # This spins up a temporary Postgres database container for your tests
     services:
       postgres:
         image: postgres:15
@@ -12,7 +20,7 @@ jobs:
           POSTGRES_DB: alertflow
         ports:
           - 5432:5432
-        # Wait until postgres is healthy before starting steps
+        # This ensures the database is fully ready before the test steps start
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
