@@ -1,14 +1,23 @@
-name: CI
-
-on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
-
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    # Add a PostgreSQL service container
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: alertflow
+          POSTGRES_PASSWORD: alertflow
+          POSTGRES_DB: alertflow
+        ports:
+          - 5432:5432
+        # Wait until postgres is healthy before starting steps
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout code
